@@ -1,7 +1,7 @@
 # Fast Bayesian FPCA Code
 Includes a number of supporting components:
 - Fast Bayesian FPCA implementation in STAN
-- Comparator Bayesian FPCA STAN implementations
+- Comparator Bayesian FPCA implementations
 - R codes for performing simulations and comparing the performance of the various approaches on:
   - Integrated Squared Error of FPCs
   - Point-wise coverage of FPCs
