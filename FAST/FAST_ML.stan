@@ -93,9 +93,6 @@ model {
   {
     matrix[I, M] UDV_1 = Scores1 * (B * Psi_1)';
     matrix[N, M] UDV_2 = Scores2 * (B * Psi_2)';
-    // for(i in 1:N){
-    //   Y[i,] ~ normal(mu + UDV_1[ID[i],] + UDV_2[i,], sqrt(sigma2));
-    // }
     to_vector(Y) ~ normal(to_vector(rep_matrix(mu, N) + UDV_1[ID] + UDV_2), sqrt(sigma2));
   }
 }
