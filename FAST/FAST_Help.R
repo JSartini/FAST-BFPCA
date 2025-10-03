@@ -1,19 +1,12 @@
 # Produce P_alpha using functional basis - numerical integration
-FAST_P <- function(derivs, Q){
+FAST_P <- function(derivs, Q, upp){
   P2 = matrix(0, ncol = Q, nrow = Q)
-  # Adjust desired accuracy as problem becomes more complex due to large # bases
-  if(Q <= 30){
-    des.tol = .Machine$double.eps^0.30
-  }
-  else{
-    des.tol = .Machine$double.eps^0.40
-  }
   for(i in 1:Q){
     for(j in 1:i){
       # Rescale for numerical precision purposes
       f2 <- function(x){ return(derivs[[i]](x) * derivs[[j]](x)) }
-      P2[i,j] = stats::integrate(f2, lower = 0, upper = 1, subdivisions = 1000, 
-                                 rel.tol = des.tol)$value
+      P2[i,j] = stats::integrate(f2, lower = 0, upper = upp,
+                                 subdivisions = 10000)$value
       if(i != j){
         P2[j,i] = P2[i,j]
       }
@@ -78,12 +71,14 @@ FAST_datalist <- function(Y, N, K, Q, Domain, W, basis_type = "Splinet",
   else{
     B = FAST_B(basis_type, Q, Domain)
     P0 = diag(Q)
+    upp = 1
     if(basis_type == "Fourier"){
       derivs = Fourier_d2(Q)
     }
     else if(basis_type == "Splinet"){
       bobj = Splinet_bases(Q)
       derivs = Splinet_d2(Q, bobj$cInt, bobj$cSlo)
+      upp = 10
     }
     else if(basis_type == "Legendre"){
       derivs = Legendre_d2(Q)
@@ -91,7 +86,7 @@ FAST_datalist <- function(Y, N, K, Q, Domain, W, basis_type = "Splinet",
     else{
       stop("Basis not supported")
     }
-    P2 = FAST_P(derivs, Q)
+    P2 = FAST_P(derivs, Q, upp)
   }
   P2 = P2/eigen(P2)$values[1]
   P_alpha = alpha * P0 + (1-alpha) * P2

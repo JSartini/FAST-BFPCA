@@ -105,7 +105,7 @@ Splinet_bases <- function(Q){
 
 Splinet_d2 <- function(Q, cInt, cSlo){
   
-  B_f = splinet(knots = seq(0, 1, length.out = Q+2), norm = T)
+  B_f = splinet(knots = seq(0, 10, length.out = Q+2), norm = T)
   second_deriv = deriva(deriva(B_f$os))
   
   derivs = map(1:(Q-2), function(q){
