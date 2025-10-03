@@ -1,6 +1,5 @@
 # Produce P_alpha using functional basis - numerical integration
-FAST_P <- function(basis, derivs, Q){
-  P0 = matrix(0, ncol = Q, nrow = Q)
+FAST_P <- function(derivs, Q){
   P2 = matrix(0, ncol = Q, nrow = Q)
   # Adjust desired accuracy as problem becomes more complex due to large # bases
   if(Q <= 30){
@@ -12,19 +11,15 @@ FAST_P <- function(basis, derivs, Q){
   for(i in 1:Q){
     for(j in 1:i){
       # Rescale for numerical precision purposes
-      f0 <- function(x){ return(basis[[i]](x) * basis[[j]](x)) } 
       f2 <- function(x){ return(derivs[[i]](x) * derivs[[j]](x)) }
-      P0[i,j] = stats::integrate(f0, lower = 0, upper = 1, subdivisions = 1000, 
-                                 rel.tol = des.tol)$value
       P2[i,j] = stats::integrate(f2, lower = 0, upper = 1, subdivisions = 1000, 
                                  rel.tol = des.tol)$value
       if(i != j){
-        P0[j,i] = P0[i,j]
         P2[j,i] = P2[i,j]
       }
     }
   } 
-  return(list(P0 = P0, P2 = P2))
+  return(P2)
 }
 
 FAST_B <- function(basis_type = "Fourier", Q, Domain){
@@ -82,24 +77,22 @@ FAST_datalist <- function(Y, N, K, Q, Domain, W, basis_type = "Splinet",
   }
   else{
     B = FAST_B(basis_type, Q, Domain)
+    P0 = diag(Q)
     if(basis_type == "Fourier"){
-      basis = Fourier_bases(Q)
       derivs = Fourier_d2(Q)
     }
     else if(basis_type == "Splinet"){
       bobj = Splinet_bases(Q)
-      basis = bobj$B
       derivs = Splinet_d2(Q, bobj$cInt, bobj$cSlo)
     }
     else if(basis_type == "Legendre"){
-      basis = Legendre_bases(Q)
       derivs = Legendre_d2(Q)
     }
     else{
       stop("Basis not supported")
     }
-    P_est = FAST_P(basis, derivs, Q)
-    P_alpha = alpha * P_est$P0 + (1-alpha) * P_est$P2
+    P2 = FAST_P(derivs, Q)
+    P_alpha = alpha * P0 + (1-alpha) * P2
   }
   
   # Scale the Y-values, storing the location and scale
@@ -148,24 +141,22 @@ FAST_DL_ML <- function(Y, N, IDs, K1, K2, Q, Domain, basis_type = "Fourier",
   }
   else{
     B = FAST_B(basis_type, Q, Domain)
+    P0 = diag(Q)
     if(basis_type == "Fourier"){
-      basis = Fourier_bases(Q)
       derivs = Fourier_d2(Q)
     }
     else if(basis_type == "Legendre"){
-      basis = Legendre_bases(Q)
       derivs = Legendre_d2(Q)
     }
     else if(basis_type == "Splinet"){
       bobj = Splinet_bases(Q)
-      basis = bobj$B
       derivs = Splinet_d2(Q, bobj$cInt, bobj$cSlo)
     }
     else{
       stop("Basis not supported")
     }
-    P_est = FAST_P(basis, derivs, Q)
-    P_alpha = alpha * P_est$P0 + (1-alpha) * P_est$P2
+    P2 = FAST_P(derivs, Q)
+    P_alpha = alpha * P0 + (1-alpha) * P2
   }
   
   # Scale the Y-values, storing the location and scale
