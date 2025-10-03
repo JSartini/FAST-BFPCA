@@ -9,6 +9,10 @@ data {
   matrix[Q, Q] P_alpha;   // Penalty matrix
 }
 
+transformed data {
+  real tr_P = trace(P_alpha);  // Trace of penalty
+}
+
 parameters {
   real<lower=0> sigma2; // Error in observation
   
@@ -39,7 +43,7 @@ transformed parameters{
 model {
   
   // Smoothing weight priors 
-  H ~ gamma(0.001, 0.001);
+  H ~ gamma(0.01, tr_P + 0.01);
   h_mu ~ gamma(0.001, 0.001);
   
    // Variance component priors
