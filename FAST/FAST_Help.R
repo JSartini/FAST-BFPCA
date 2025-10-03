@@ -78,7 +78,7 @@ FAST_datalist <- function(Y, N, K, Q, Domain, W, basis_type = "Splinet",
     else if(basis_type == "Splinet"){
       bobj = Splinet_bases(Q)
       derivs = Splinet_d2(Q, bobj$cInt, bobj$cSlo)
-      upp = 10
+      upp = 10 # Larger range for stability of numerical integration
     }
     else if(basis_type == "Legendre"){
       derivs = Legendre_d2(Q)
@@ -138,6 +138,7 @@ FAST_DL_ML <- function(Y, N, IDs, K1, K2, Q, Domain, basis_type = "Fourier",
   else{
     B = FAST_B(basis_type, Q, Domain)
     P0 = diag(Q)
+    upp = 1
     if(basis_type == "Fourier"){
       derivs = Fourier_d2(Q)
     }
@@ -147,11 +148,12 @@ FAST_DL_ML <- function(Y, N, IDs, K1, K2, Q, Domain, basis_type = "Fourier",
     else if(basis_type == "Splinet"){
       bobj = Splinet_bases(Q)
       derivs = Splinet_d2(Q, bobj$cInt, bobj$cSlo)
+      upp = 10 # Larger range for stability of numerical integration
     }
     else{
       stop("Basis not supported")
     }
-    P2 = FAST_P(derivs, Q)
+    P2 = FAST_P(derivs, Q, upp)
   }
   P2 = P2/eigen(P2)$values[1]
   P_alpha = alpha * P0 + (1-alpha) * P2
