@@ -309,3 +309,181 @@ RHat_POLAR <- function(model, data, align_EF){
   return(outputs)
 }
 
+# Function for assessing the convergence of multi-level FAST
+RHat_FAST_ML <- function(model, data, align_EF1, align_EF2){
+  n_chains = length(model@inits)  
+  n_samp = model@stan_args[[1]]$iter - model@stan_args[[1]]$warmup
+  
+  # Extract by chain
+  by_chain = FAST_ML_byChain(model, data$N, data$I, data$M, data$K1, data$K2)
+  
+  aligned1 = map(1:n_chains, function(c){
+    aligned = align_weights(by_chain$P1[[c]], 
+                            by_chain$S1[[c]],
+                            data$B, 
+                            anchor = align_EF1)
+    return(aligned)
+  })
+  
+  aligned2 = map(1:n_chains, function(c){
+    aligned = align_weights(by_chain$P2[[c]], 
+                            by_chain$S2[[c]],
+                            data$B, 
+                            anchor = align_EF2)
+    return(aligned)
+  })
+  
+  score1 = map(aligned1, function(x){
+    out = x$Score %>% abind(along = 3)
+    return(out)
+  }) %>% abind(along = 4)
+  
+  score2 = map(aligned2, function(x){
+    out = x$Score %>% abind(along = 3)
+    return(out)
+  }) %>% abind(along = 4)
+  
+  lambda1 = apply(score1, c(2,3,4), var)
+  lambda2 = apply(score2, c(2,3,4), var)
+  
+  fpc1 = map(aligned1, function(x){
+    out = x$EF %>% abind(along = 3)
+    return(out)
+  }) %>% abind(along = 4)
+  
+  fpc2 = map(aligned2, function(x){
+    out = x$EF %>% abind(along = 3)
+    return(out)
+  }) %>% abind(along = 4)
+  
+  raw_samples = extract(model, permuted = F)
+  dimen_names = dimnames(raw_samples)$parameters
+  
+  fpcs_idx = grepl("^H_[0-9]\\[[0-9]+\\]$", dimen_names)
+  mus_idx = grepl("H_mu", dimen_names)
+  smooth_chains = map(1:n_chains, function(j){
+    output = map(1:n_samp, function(i){
+      fpc_smooth = raw_samples[i,j,fpcs_idx]
+      mean_smooth = raw_samples[i,j,mus_idx]
+      return(c(fpc_smooth, mean_smooth))
+    }) %>% abind(along = 2)
+  }) %>% abind(along = 3)
+  
+  sig_idx = grepl("sigma2", dimen_names)
+  sigma_chains = map(1:n_chains, function(j){
+    output = map(1:n_samp, function(i){
+      return(raw_samples[i,j,sig_idx])
+    }) %>% abind(along = 1)
+  }) %>% abind(along = 2)
+  
+  mu_idx = grepl("w_mu", dimen_names)
+  mu_chains = map(1:n_chains, function(j){
+    output = map(1:n_samp, function(i){
+      mean_func = (data$B %*% raw_samples[i,j,mu_idx]) * data$sd_Y + data$mu_Y
+      return(mean_func)
+    }) %>% abind(along = 2)
+  }) %>% abind(along = 3)
+  
+  # Calculate RHat statistics
+  lambda1_rhats = rep(0, length = data$K1)
+  score1_rhats = matrix(0, nrow = data$N, ncol = data$K1)
+  fpc1_rhats = matrix(0, nrow = data$M, ncol = data$K1)
+  
+  lambda2_rhats = rep(0, length = data$K2)
+  score2_rhats = matrix(0, nrow = data$N, ncol = data$K2)
+  fpc2_rhats = matrix(0, nrow = data$M, ncol = data$K2)
+  
+  sigma_rhat = Rhat(sigma_chains)
+  mu_rhats = rep(0, length = data$M)
+  smooth_rhats = rep(0, length = data$K1 + data$K2 + 1)
+  
+  for(m in 1:data$M){
+    mu_rhats = Rhat(mu_chains[m,,])
+  }
+  for(k in 1:data$K1){
+    lambda1_rhats[k] = Rhat(lambda1[k,,])
+    smooth_rhats[k] = Rhat(smooth_chains[k,,])
+    
+    for(n in 1:data$I){
+      score1_rhats[n, k] = Rhat(score1[n,k,,])
+    }
+    
+    for(m in 1:data$M){
+      fpc1_rhats[m, k] = Rhat(fpc1[m,k,,])
+    }
+  }
+  for(k in 1:data$K2){
+    lambda2_rhats[k] = Rhat(lambda2[k,,])
+    smooth_rhats[data$K1 + k] = Rhat(smooth_chains[data$K1 + k,,])
+    
+    for(n in 1:data$N){
+      score2_rhats[n, k] = Rhat(score2[n,k,,])
+    }
+    
+    for(m in 1:data$M){
+      fpc2_rhats[m, k] = Rhat(fpc2[m,k,,])
+    }
+  }
+  smooth_rhats[data$K1+data$K2+1] = Rhat(smooth_chains[data$K1+data$K2+1,,])
+  
+  # Summarize and convert to dataframes
+  fpc1_names = paste0("FPC ", 1:data$K1)
+  fpc2_names = paste0("FPC ", 1:data$K2)
+  
+  score1_rhats = data.frame(score1_rhats)
+  colnames(score1_rhats) = fpc1_names
+  score1_rhats = score1_rhats %>%
+    pivot_longer(cols = everything(), names_to = "FPC_Num", values_to = "Rhat") %>%
+    group_by(FPC_Num) %>%
+    summarize(Med_RHat = median(Rhat),
+              Max_RHat = max(Rhat)) %>%
+    mutate(Level = 1)
+  
+  score2_rhats = data.frame(score2_rhats)
+  colnames(score2_rhats) = fpc2_names
+  score2_rhats = score2_rhats %>%
+    pivot_longer(cols = everything(), names_to = "FPC_Num", values_to = "Rhat") %>%
+    group_by(FPC_Num) %>%
+    summarize(Med_RHat = median(Rhat),
+              Max_RHat = max(Rhat)) %>%
+    mutate(Level = 2)
+  
+  func1_rhats = data.frame(fpc1_rhats)
+  colnames(func1_rhats) = fpc1_names
+  func1_rhats = func1_rhats %>%
+    pivot_longer(cols = everything(), names_to = "Function", values_to = "Rhat") %>%
+    group_by(Function) %>%
+    summarize(Med_RHat = median(Rhat),
+              Max_RHat = max(Rhat)) %>%
+    rbind(data.frame(Function = "Mu", 
+                     Med_RHat = median(mu_rhats),
+                     Max_RHat = max(mu_rhats))) %>%
+    mutate(Level = 1)
+  
+  func2_rhats = data.frame(fpc2_rhats)
+  colnames(func2_rhats) = fpc2_names
+  func2_rhats = func2_rhats %>%
+    pivot_longer(cols = everything(), names_to = "Function", values_to = "Rhat") %>%
+    group_by(Function) %>%
+    summarize(Med_RHat = median(Rhat),
+              Max_RHat = max(Rhat)) %>%
+    rbind(data.frame(Function = "Mu", 
+                     Med_RHat = median(mu_rhats),
+                     Max_RHat = max(mu_rhats))) %>%
+    mutate(Level = 2)
+  
+  smooth_rhats = data.frame(Function = c(fpc1_names, fpc2_names, "Mu"), 
+                            RHat = smooth_rhats)
+  
+  Variance_rhats = data.frame(Element = c(paste0("Lambda^1_", 1:data$K1), 
+                                          paste0("Lambda^2_", 1:data$K2), "Sigma2"),
+                              Level = c(rep(1, data$K1), rep(2, data$K2), NA),
+                              RHat = c(lambda1_rhats, lambda2_rhats, sigma_rhat))
+  
+  outputs = list(Score = rbind(score1_rhats, score2_rhats),
+                 Func = rbind(func1_rhats, func2_rhats),  
+                 Smoothing_Params = smooth_rhats, Variances = Variance_rhats)
+  
+  return(outputs)
+}
+
