@@ -118,7 +118,6 @@ FAST_DL_ML <- function(Y, N, IDs, K1, K2, Q, Domain, basis_type = "Fourier",
     B = evaluate(B_f, Domain)
     P0 = GramMatrix(B_f)
     P2 = OuterProdSecondDerivative(B_f)
-    P_alpha = alpha * P0 + (1-alpha) * P2
   }
   else if(basis_type == "Approx"){ 
     M = length(Domain)
@@ -133,7 +132,8 @@ FAST_DL_ML <- function(Y, N, IDs, K1, K2, Q, Domain, basis_type = "Fourier",
     diff2 = matrix(rep(c(1,-2,1, rep(0, M-2)), M-2)[1:((M-2)*M)], M-2, M, byrow = TRUE)
     P0 = t(B) %*% t(diff0) %*% diff0 %*% B
     P2 = t(B) %*% t(diff2) %*% diff2 %*% B
-    P_alpha = alpha * P0 + (1-alpha) * P2
+    
+    P0 = P0/eigen(P0)$values[1]
   }
   else{
     B = FAST_B(basis_type, Q, Domain)
@@ -152,8 +152,9 @@ FAST_DL_ML <- function(Y, N, IDs, K1, K2, Q, Domain, basis_type = "Fourier",
       stop("Basis not supported")
     }
     P2 = FAST_P(derivs, Q)
-    P_alpha = alpha * P0 + (1-alpha) * P2
   }
+  P2 = P2/eigen(P2)$values[1]
+  P_alpha = alpha * P0 + (1-alpha) * P2
   
   # Scale the Y-values, storing the location and scale
   if(scale){
