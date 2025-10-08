@@ -64,8 +64,8 @@ transformed parameters{
 model {
   // Smoothing weight priors 
   H_mu ~ gamma(0.001, 0.001); 
-  H_1 ~ gamma(0.01, tr_P + 0.01);
-  H_2 ~ gamma(0.01, tr_P + 0.01);
+  H_1 ~ gamma(0.01, tr_P/2 + 0.01);
+  H_2 ~ gamma(0.01, tr_P/2 + 0.01);
   
   // Variance component priors
   lambda_1 ~ inv_gamma(0.001, 0.001);
