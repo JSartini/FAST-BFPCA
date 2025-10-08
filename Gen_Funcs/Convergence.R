@@ -386,7 +386,7 @@ RHat_FAST_ML <- function(model, data, align_EF1, align_EF2){
   
   # Calculate RHat statistics
   lambda1_rhats = rep(0, length = data$K1)
-  score1_rhats = matrix(0, nrow = data$N, ncol = data$K1)
+  score1_rhats = matrix(0, nrow = data$I, ncol = data$K1)
   fpc1_rhats = matrix(0, nrow = data$M, ncol = data$K1)
   
   lambda2_rhats = rep(0, length = data$K2)
